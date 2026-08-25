@@ -56,9 +56,20 @@ def main_app():
     else:
         st.markdown('<link rel="apple-touch-icon" href="logo.png">', unsafe_allow_html=True)
 
+    title_base64 = get_image_base64("title1.png")
     col1, col2, col3 = st.columns([1, 4, 1])
     with col2:
-        st.image("title1.png", use_container_width=True)
+        if title_base64:
+            st.markdown(
+                f"""
+                <div style="text-align:center;">
+                    <img src="data:image/png;base64,{title_base64}" style="width:10%; height:auto;">
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.image("title1.png", width=80)
         st.caption("日々の献立作りをサポートする、プロの野菜レシピ検索ツールです。")
 
     if "GOOGLE_API_KEY" in st.secrets:
