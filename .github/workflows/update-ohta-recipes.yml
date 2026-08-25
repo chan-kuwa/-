@@ -1,0 +1,41 @@
+name: Update ohta recipe CSV
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '25 18 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  update-ohta-recipes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      - name: Sync published recipes
+        run: python sync_ohta_recipes.py
+
+      - name: Commit CSV changes
+        run: |
+          if git diff --quiet -- fa2ac34592382d85a2af03a450f780a4.csv; then
+            echo "No recipe changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add fa2ac34592382d85a2af03a450f780a4.csv
+          git commit -m "Auto-update ohta recipe CSV [skip ci]"
+          git push
