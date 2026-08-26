@@ -4,7 +4,6 @@ from bs4 import BeautifulSoup
 import google.generativeai as genai
 import base64
 import io
-import os
 import re
 from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A4
@@ -12,7 +11,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 
 # --- 1. ページ設定 ---
@@ -118,20 +117,15 @@ def check_password():
 
 # --- PDF作成 ---
 def _register_japanese_font():
-    candidates = [
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf",
-        "/usr/share/fonts/truetype/noto/NotoSansJP-Regular.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    ]
-    for path in candidates:
-        if os.path.exists(path):
-            try:
-                pdfmetrics.registerFont(TTFont("RecipeJP", path))
-                return "RecipeJP"
-            except Exception:
-                continue
-    return "Helvetica"
+    """ReportLab標準の日本語CIDフォントを使用する。
+
+    Streamlit Cloud上のOSフォントに依存しないため、
+    日本語が□や■に文字化けするのを防げます。
+    """
+    font_name = "HeiseiMin-W3"
+    if font_name not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(UnicodeCIDFont(font_name))
+    return font_name
 
 
 def _markdown_to_plain(text):
