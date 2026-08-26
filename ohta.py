@@ -27,6 +27,7 @@ st.markdown(
         gap: 0.55rem;
         flex-wrap: nowrap;
         white-space: nowrap;
+        margin-left: 0;
     }
     .app-brand-row img {
         width: 48px;
@@ -34,16 +35,16 @@ st.markdown(
         flex: 0 0 auto;
     }
     .app-title-line {
-        font-size: clamp(16px, 4vw, 23px);
+        font-size: clamp(22px, 7vw, 36px);
         font-weight: 700;
-        line-height: 1.35;
+        line-height: 1.2;
         white-space: nowrap;
         margin: 0;
     }
     .app-main-title {
-        font-size: clamp(16px, 4vw, 23px);
+        font-size: clamp(22px, 7vw, 36px);
         font-weight: 700;
-        line-height: 1.35;
+        line-height: 1.2;
         white-space: nowrap;
         margin: 0.35rem 0 0.45rem 0;
     }
@@ -62,22 +63,32 @@ st.markdown(
 
     @media (max-width: 480px) {
         .block-container {
-            padding-left: 0.35rem;
-            padding-right: 0.35rem;
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+        }
+        .app-header,
+        .app-brand-row,
+        .app-main-title,
+        .app-caption,
+        .search-heading {
+            margin-left: 0 !important;
         }
         .app-brand-row img {
-            width: 40px;
+            width: 34px;
         }
         .app-brand-row {
-            gap: 0.45rem;
+            gap: 0.4rem;
+        }
+        .app-title-line,
+        .app-main-title,
+        .search-heading {
+            font-size: 24px;
+            line-height: 1.2;
+            letter-spacing: -0.3px;
         }
         .app-title-line,
         .app-main-title {
-            font-size: 16px;
-            letter-spacing: -0.2px;
-        }
-        .search-heading {
-            font-size: 24px;
+            white-space: nowrap;
         }
     }
     </style>
