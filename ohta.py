@@ -5,6 +5,7 @@ import google.generativeai as genai
 import base64
 import io
 import re
+from pathlib import Path
 from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -254,7 +255,20 @@ def main_app():
         df['clean_content'] = df['Content'].apply(strip_html)
         return df
 
-    df = load_data("fa2ac34592382d85a2af03a450f780a4.csv")
+    master_csv = Path("master_recipe_data.csv")
+    legacy_csv = Path("fa2ac34592382d85a2af03a450f780a4.csv")
+    active_csv = master_csv if master_csv.exists() else legacy_csv
+    df = load_data(str(active_csv))
+
+    # マスターレシピCSVをいつでも保存できるようにする
+    with active_csv.open("rb") as csv_file:
+        st.download_button(
+            "⬇️ master_recipe_data.csv をダウンロード",
+            data=csv_file.read(),
+            file_name="master_recipe_data.csv",
+            mime="text/csv",
+            use_container_width=False
+        )
 
     if '季節' in df.columns:
         all_seasons = df['季節'].dropna().unique().tolist()
