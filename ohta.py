@@ -34,18 +34,18 @@ st.markdown(
         height: auto;
         flex: 0 0 auto;
     }
-    .app-title-line {
+    .app-title-line,
+    .app-main-title,
+    .search-heading {
         font-size: clamp(22px, 7vw, 36px);
         font-weight: 700;
         line-height: 1.2;
         white-space: nowrap;
+    }
+    .app-title-line {
         margin: 0;
     }
     .app-main-title {
-        font-size: clamp(22px, 7vw, 36px);
-        font-weight: 700;
-        line-height: 1.2;
-        white-space: nowrap;
         margin: 0.35rem 0 0.45rem 0;
     }
     .app-caption {
@@ -54,11 +54,7 @@ st.markdown(
         margin-bottom: 1.2rem;
     }
     .search-heading {
-        font-size: clamp(22px, 7vw, 36px);
-        font-weight: 700;
-        line-height: 1.2;
-        white-space: nowrap;
-        margin: 0.6rem 0 1rem 0;
+        margin: 1.2rem 0 1rem 0;
     }
 
     @media (max-width: 480px) {
@@ -85,10 +81,6 @@ st.markdown(
             font-size: 24px;
             line-height: 1.2;
             letter-spacing: -0.3px;
-        }
-        .app-title-line,
-        .app-main-title {
-            white-space: nowrap;
         }
     }
     </style>
@@ -188,37 +180,36 @@ def main_app():
     else:
         all_seasons = ["春", "夏", "秋", "冬"]
 
-    mode_options = ["過去レシピを検索", "自由な食材から新作を生成"]
+    # 最初に機能だけ選ぶ
+    st.markdown("### 機能を選択")
+    mode = st.radio(
+        "機能",
+        ["過去レシピを検索", "自由な食材から新作を生成"],
+        index=None,
+        key="main_mode",
+        label_visibility="collapsed",
+        horizontal=True
+    )
 
-    if "main_seasons" not in st.session_state:
-        st.session_state.main_seasons = all_seasons
-    if "main_mode" not in st.session_state:
-        st.session_state.main_mode = mode_options[0]
+    # 何も選んでいないときは、ここで終了
+    if mode is None:
+        st.caption("使いたい機能を選んでください。")
+        return
 
-    mode = st.session_state.main_mode
-
+    # --- 過去レシピ検索 ---
     if mode == "過去レシピを検索":
         st.markdown('<div class="search-heading">🔍過去レシピ検索</div>', unsafe_allow_html=True)
         q = st.text_input("キーワードを入力（食材や料理名）", placeholder="例：なす 豚肉")
 
         st.markdown("### 季節・旬を選択")
-        st.multiselect(
+        selected_seasons = st.multiselect(
             "季節・旬",
             options=all_seasons,
+            default=all_seasons,
             key="main_seasons",
             label_visibility="collapsed"
         )
 
-        st.markdown("### 機能を選択")
-        st.radio(
-            "機能",
-            mode_options,
-            key="main_mode",
-            label_visibility="collapsed",
-            horizontal=True
-        )
-
-        selected_seasons = st.session_state.main_seasons
         filtered_df = df[df['季節'].isin(selected_seasons)] if selected_seasons else df.iloc[0:0]
 
         if q:
@@ -240,37 +231,25 @@ def main_app():
                     copy_text = f"【{row['Title']}】\n\n{row['clean_content']}\n\n元記事: {row['Permalink']}"
                     st.code(copy_text, language="text")
 
+    # --- 新作レシピ生成 ---
     else:
-        st.markdown('<div class="search-heading">✨自由食材で新作生成</div>', unsafe_allow_html=True)
-        st.write("手元にある食材や、使いたい調味料を自由に入力してください。")
-
-        st.markdown("### 季節・旬を選択")
-        st.multiselect(
-            "季節・旬",
-            options=all_seasons,
-            key="main_seasons",
-            label_visibility="collapsed"
-        )
-
-        st.markdown("### 機能を選択")
-        st.radio(
-            "機能",
-            mode_options,
-            key="main_mode",
-            label_visibility="collapsed",
-            horizontal=True
-        )
+        st.markdown('<div class="search-heading">✨自由な食材から新作を生成</div>', unsafe_allow_html=True)
+        st.write("作りたい料理のイメージ、使いたい食材、味付け、条件などを自由に書いてください。")
 
         if "generated_recipe" not in st.session_state:
             st.session_state.generated_recipe = None
 
-        input_text = st.text_area("使いたい食材・条件を入力", placeholder="例：なす、厚揚げ、少しピリ辛にしたい")
+        input_text = st.text_area(
+            "リクエストを入力",
+            placeholder="例：なすと厚揚げを使って、夏向けのさっぱりした2人分のおばんざいを作りたい",
+            height=140
+        )
 
-        if st.button("大畑ちつるスタイルでレシピを考案"):
+        if st.button("文章とレシピを生成する", type="primary"):
             if not input_text:
-                st.warning("食材を入力してください。")
+                st.warning("リクエストを入力してください。")
             else:
-                with st.spinner("大畑ちつるの過去の味付けを分析して考案中..."):
+                with st.spinner("過去のレシピの傾向を参考に、新しい文章とレシピを作成しています..."):
                     try:
                         prompt = f"""
 あなたは管理栄養士でやさい料理研究家の大畑ちつるです。
@@ -316,39 +295,42 @@ def main_app():
 ・工程ごとに1〜3文で丁寧に説明する
 ・料理初心者でも作れる説明にする
 
-# ユーザーからのリクエスト（食材・条件）
+# ユーザーからのリクエスト
 {input_text}
 """
                         response = model_instance.generate_content(prompt)
                         st.session_state.generated_recipe = response.text
-                        st.success("新作レシピ案が完成しました！")
+                        st.success("文章とレシピが完成しました！")
 
                     except Exception as e:
                         st.error(f"エラーが発生しました: {e}")
 
         if st.session_state.generated_recipe:
-            st.subheader("📖 大畑ちつるの新作レシピ")
+            st.subheader("📖 生成された文章とレシピ")
             st.markdown(st.session_state.generated_recipe)
             st.divider()
-            st.write("### ✍️ レシピを調整する")
-            feedback = st.text_input("追加の希望（例：2人分に変更、もう少し酸っぱく、等）", key="feedback_input")
+            st.write("### ✍️ 内容を調整する")
+            feedback = st.text_input(
+                "追加の希望（例：2人分に変更、酸味を強く、材料を減らす、など）",
+                key="feedback_input"
+            )
 
             if st.button("この内容で再調整する"):
                 if not feedback:
                     st.warning("修正内容を入力してください。")
                 else:
-                    with st.spinner("レシピを微調整しています..."):
+                    with st.spinner("内容を調整しています..."):
                         try:
                             edit_prompt = f"""
 あなたは料理研究家の大畑ちつるです。
-先ほど提案したレシピに対して、ユーザーから修正依頼がありました。
+先ほど提案した文章とレシピに対して、ユーザーから修正依頼がありました。
 
 【修正のルール】
 ・ユーザーの「追加の希望」を反映してください。
-・それ以外の部分は、元のレシピから絶対に変えないでください。
+・それ以外の部分は、元の文章とレシピから絶対に変えないでください。
 ・引き続き、大畑ちつる本人のトーンを維持してください。
 
-# 元のレシピ
+# 元の文章とレシピ
 {st.session_state.generated_recipe}
 
 # ユーザーからの追加の希望
@@ -360,7 +342,7 @@ def main_app():
                         except Exception as e:
                             st.error(f"エラーが発生しました: {e}")
 
-            st.caption("📋 レシピ全文をコピー")
+            st.caption("📋 全文をコピー")
             st.code(st.session_state.generated_recipe, language="text")
 
 # --- 4. 実行 ---
