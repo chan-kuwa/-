@@ -18,12 +18,11 @@ def check_password():
 
     st.title("🔐 認証が必要です")
     password = st.text_input("password", type="password")
-    
+
     if st.button("ログイン"):
-        # st.secrets から APP_PASSWORD を取得。設定がない場合は一時的なフォールバックパスワードを適用
         target_password = st.secrets.get("APP_PASSWORD", "0000")
-        
-        if password == target_password: 
+
+        if password == target_password:
             st.session_state["password_correct"] = True
             st.rerun()
         else:
@@ -56,69 +55,119 @@ def main_app():
     else:
         st.markdown('<link rel="apple-touch-icon" href="logo.png">', unsafe_allow_html=True)
 
-    title_base64 = get_image_base64("title1.png")
-    col1, col2, col3 = st.columns([1, 4, 1])
-    with col2:
-        if title_base64:
-            st.markdown(
-                f"""
-                <div style="text-align:center;">
-                    <img src="data:image/png;base64,{title_base64}" style="width:10%; height:auto;">
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.image("title1.png", width=80)
+    # 右上ロゴ＋テキストタイトル
+    header_left, header_right = st.columns([8, 1])
+    with header_left:
+        st.markdown("## やさい料理研究家 大畑ちつる")
+        st.markdown("# レシピリサーチ＆レシピメーカー")
         st.caption("日々の献立作りをサポートする、プロの野菜レシピ検索ツールです。")
+    with header_right:
+        st.image("logo.png", width=85)
 
     if "GOOGLE_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     else:
         st.error("GOOGLE_API_KEYが見つかりません。")
 
-    # モデル名は変えない（gemini-3-flash-previewを使用）
     model_instance = genai.GenerativeModel('gemini-3-flash-preview')
 
     @st.cache_data
     def load_data(file_path):
         df = pd.read_csv(file_path)
         df = df[df['Post Type'] == 'recipe'].copy()
+
         def strip_html(html_str):
-            if pd.isna(html_str): return ""
+            if pd.isna(html_str):
+                return ""
             return BeautifulSoup(html_str, "html.parser").get_text(separator=" ").strip()
+
         df['clean_content'] = df['Content'].apply(strip_html)
         return df
 
     df = load_data("fa2ac34592382d85a2af03a450f780a4.csv")
-
-    st.sidebar.title("メニュー")
-    st.sidebar.markdown("### 🔍 レシピを絞り込む")
 
     if '季節' in df.columns:
         all_seasons = df['季節'].dropna().unique().tolist()
     else:
         all_seasons = ["春", "夏", "秋", "冬"]
 
-    selected_seasons = st.sidebar.multiselect(
+    mode_options = ["過去レシピを検索", "自由な食材から新作を生成"]
+
+    # サイドバーとメイン画面の選択内容を同期
+    if "sidebar_seasons" not in st.session_state:
+        st.session_state.sidebar_seasons = all_seasons
+    if "main_seasons" not in st.session_state:
+        st.session_state.main_seasons = list(st.session_state.sidebar_seasons)
+    if "sidebar_mode" not in st.session_state:
+        st.session_state.sidebar_mode = mode_options[0]
+    if "main_mode" not in st.session_state:
+        st.session_state.main_mode = st.session_state.sidebar_mode
+
+    def sync_seasons_from_sidebar():
+        st.session_state.main_seasons = list(st.session_state.sidebar_seasons)
+
+    def sync_seasons_from_main():
+        st.session_state.sidebar_seasons = list(st.session_state.main_seasons)
+
+    def sync_mode_from_sidebar():
+        st.session_state.main_mode = st.session_state.sidebar_mode
+
+    def sync_mode_from_main():
+        st.session_state.sidebar_mode = st.session_state.main_mode
+
+    # サイドバー
+    st.sidebar.title("メニュー")
+    st.sidebar.markdown("### 🔍 レシピを絞り込む")
+
+    st.sidebar.multiselect(
         "季節・旬を選択",
         options=all_seasons,
-        default=all_seasons
+        key="sidebar_seasons",
+        on_change=sync_seasons_from_sidebar
     )
 
-    filtered_df = df[df['季節'].isin(selected_seasons)]
-    mode = st.sidebar.radio("機能を選択", ["過去レシピを検索", "自由な食材から新作を生成"])
+    st.sidebar.radio(
+        "機能を選択",
+        mode_options,
+        key="sidebar_mode",
+        on_change=sync_mode_from_sidebar
+    )
+
+    # メイン画面
+    mode = st.session_state.main_mode
 
     if mode == "過去レシピを検索":
         st.title("🔍 過去レシピ検索")
         q = st.text_input("キーワードを入力（食材や料理名）", placeholder="例：なす 豚肉")
-        
+
+        st.markdown("### 季節・旬を選択")
+        st.multiselect(
+            "季節・旬",
+            options=all_seasons,
+            key="main_seasons",
+            on_change=sync_seasons_from_main,
+            label_visibility="collapsed"
+        )
+
+        st.markdown("### 機能を選択")
+        st.radio(
+            "機能",
+            mode_options,
+            key="main_mode",
+            on_change=sync_mode_from_main,
+            label_visibility="collapsed",
+            horizontal=True
+        )
+
+        selected_seasons = st.session_state.main_seasons
+        filtered_df = df[df['季節'].isin(selected_seasons)] if selected_seasons else df.iloc[0:0]
+
         if q:
             keywords = q.split()
             mask = filtered_df['clean_content'].str.contains(keywords[0], na=False, case=False)
             for kw in keywords[1:]:
                 mask &= filtered_df['clean_content'].str.contains(kw, na=False, case=False)
-            
+
             results = filtered_df[mask]
             st.write(f"ヒット数: {len(results)}件")
             for _, row in results.head(10).iterrows():
@@ -127,7 +176,7 @@ def main_app():
                         st.image(row['Image URL'].split('|')[0], width=300)
                     st.markdown(f"**[元記事を見る]({row['Permalink']})**")
                     st.write(row['clean_content'])
-                    st.divider() 
+                    st.divider()
                     st.caption("コピーして献立メモなどに貼り付けられます ↓")
                     copy_text = f"【{row['Title']}】\n\n{row['clean_content']}\n\n元記事: {row['Permalink']}"
                     st.code(copy_text, language="text")
@@ -135,8 +184,26 @@ def main_app():
     else:
         st.title("✨ 自由食材で新作生成")
         st.write("手元にある食材や、使いたい調味料を自由に入力してください。")
-        
-        # 状態保持用の変数を初期化
+
+        st.markdown("### 季節・旬を選択")
+        st.multiselect(
+            "季節・旬",
+            options=all_seasons,
+            key="main_seasons",
+            on_change=sync_seasons_from_main,
+            label_visibility="collapsed"
+        )
+
+        st.markdown("### 機能を選択")
+        st.radio(
+            "機能",
+            mode_options,
+            key="main_mode",
+            on_change=sync_mode_from_main,
+            label_visibility="collapsed",
+            horizontal=True
+        )
+
         if "generated_recipe" not in st.session_state:
             st.session_state.generated_recipe = None
 
@@ -210,17 +277,15 @@ def main_app():
                     except Exception as e:
                         st.error(f"エラーが発生しました: {e}")
 
-        # レシピが生成されている場合のみ表示
         if st.session_state.generated_recipe:
             st.subheader("📖 大畑ちつるの新作レシピ")
             st.markdown(st.session_state.generated_recipe)
-            
+
             st.divider()
-            
-            # 再調整機能
+
             st.write("### ✍️ レシピを調整する")
             feedback = st.text_input("追加の希望（例：2人分に変更、もう少し酸っぱく、等）", key="feedback_input")
-            
+
             if st.button("この内容で再調整する"):
                 if not feedback:
                     st.warning("修正内容を入力してください。")
