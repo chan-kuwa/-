@@ -11,7 +11,18 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. 認証機能（シークレット管理に対応） ---
+# サイドバーを完全に非表示
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"] {display: none;}
+    [data-testid="collapsedControl"] {display: none;}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# --- 2. 認証機能 ---
 def check_password():
     if st.session_state.get("password_correct", False):
         return True
@@ -21,7 +32,6 @@ def check_password():
 
     if st.button("ログイン"):
         target_password = st.secrets.get("APP_PASSWORD", "0000")
-
         if password == target_password:
             st.session_state["password_correct"] = True
             st.rerun()
@@ -34,8 +44,7 @@ def main_app():
     def get_image_base64(file_path):
         try:
             with open(file_path, "rb") as f:
-                data = f.read()
-            return base64.b64encode(data).decode()
+                return base64.b64encode(f.read()).decode()
         except Exception:
             return None
 
@@ -52,8 +61,6 @@ def main_app():
             """,
             unsafe_allow_html=True
         )
-    else:
-        st.markdown('<link rel="apple-touch-icon" href="logo.png">', unsafe_allow_html=True)
 
     # 右上ロゴ＋テキストタイトル
     header_left, header_right = st.columns([8, 1])
@@ -93,47 +100,11 @@ def main_app():
 
     mode_options = ["過去レシピを検索", "自由な食材から新作を生成"]
 
-    # サイドバーとメイン画面の選択内容を同期
-    if "sidebar_seasons" not in st.session_state:
-        st.session_state.sidebar_seasons = all_seasons
     if "main_seasons" not in st.session_state:
-        st.session_state.main_seasons = list(st.session_state.sidebar_seasons)
-    if "sidebar_mode" not in st.session_state:
-        st.session_state.sidebar_mode = mode_options[0]
+        st.session_state.main_seasons = all_seasons
     if "main_mode" not in st.session_state:
-        st.session_state.main_mode = st.session_state.sidebar_mode
+        st.session_state.main_mode = mode_options[0]
 
-    def sync_seasons_from_sidebar():
-        st.session_state.main_seasons = list(st.session_state.sidebar_seasons)
-
-    def sync_seasons_from_main():
-        st.session_state.sidebar_seasons = list(st.session_state.main_seasons)
-
-    def sync_mode_from_sidebar():
-        st.session_state.main_mode = st.session_state.sidebar_mode
-
-    def sync_mode_from_main():
-        st.session_state.sidebar_mode = st.session_state.main_mode
-
-    # サイドバー
-    st.sidebar.title("メニュー")
-    st.sidebar.markdown("### 🔍 レシピを絞り込む")
-
-    st.sidebar.multiselect(
-        "季節・旬を選択",
-        options=all_seasons,
-        key="sidebar_seasons",
-        on_change=sync_seasons_from_sidebar
-    )
-
-    st.sidebar.radio(
-        "機能を選択",
-        mode_options,
-        key="sidebar_mode",
-        on_change=sync_mode_from_sidebar
-    )
-
-    # メイン画面
     mode = st.session_state.main_mode
 
     if mode == "過去レシピを検索":
@@ -145,7 +116,6 @@ def main_app():
             "季節・旬",
             options=all_seasons,
             key="main_seasons",
-            on_change=sync_seasons_from_main,
             label_visibility="collapsed"
         )
 
@@ -154,7 +124,6 @@ def main_app():
             "機能",
             mode_options,
             key="main_mode",
-            on_change=sync_mode_from_main,
             label_visibility="collapsed",
             horizontal=True
         )
@@ -190,7 +159,6 @@ def main_app():
             "季節・旬",
             options=all_seasons,
             key="main_seasons",
-            on_change=sync_seasons_from_main,
             label_visibility="collapsed"
         )
 
@@ -199,7 +167,6 @@ def main_app():
             "機能",
             mode_options,
             key="main_mode",
-            on_change=sync_mode_from_main,
             label_visibility="collapsed",
             horizontal=True
         )
@@ -246,8 +213,6 @@ def main_app():
 ・ただし長編エッセイにはしない
 
 【レシピ構成】
-以下の順番で必ず書く
-
 1. 挨拶
 2. 季節や素材についての短い導入
 3. レシピタイトル
@@ -258,12 +223,6 @@ def main_app():
 【作り方のルール】
 ・必ず番号をつける
 ・各工程に見出しをつける
-
-例：
-1. 素材を切る
-2. 鮭を焼く
-3. 味を絡める
-
 ・工程ごとに1〜3文で丁寧に説明する
 ・料理初心者でも作れる説明にする
 
@@ -280,9 +239,7 @@ def main_app():
         if st.session_state.generated_recipe:
             st.subheader("📖 大畑ちつるの新作レシピ")
             st.markdown(st.session_state.generated_recipe)
-
             st.divider()
-
             st.write("### ✍️ レシピを調整する")
             feedback = st.text_input("追加の希望（例：2人分に変更、もう少し酸っぱく、等）", key="feedback_input")
 
@@ -298,7 +255,7 @@ def main_app():
 
 【修正のルール】
 ・ユーザーの「追加の希望」を反映してください。
-・**それ以外の部分は、元のレシピから絶対に変えないでください。** 構成や語り口を維持したまま、必要な箇所だけを書き換えてください。
+・それ以外の部分は、元のレシピから絶対に変えないでください。
 ・引き続き、大畑ちつる本人のトーンを維持してください。
 
 # 元のレシピ
@@ -310,14 +267,13 @@ def main_app():
                             edit_response = model_instance.generate_content(edit_prompt)
                             st.session_state.generated_recipe = edit_response.text
                             st.rerun()
-
                         except Exception as e:
                             st.error(f"エラーが発生しました: {e}")
 
             st.caption("📋 レシピ全文をコピー")
             st.code(st.session_state.generated_recipe, language="text")
 
-# --- 4. 実行のトリガー ---
+# --- 4. 実行 ---
 if check_password():
     main_app()
 else:
