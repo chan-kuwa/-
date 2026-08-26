@@ -3,7 +3,11 @@ name: Update ohta recipe CSV
 on:
   workflow_dispatch:
   schedule:
-    - cron: '25 18 * * *'
+    - cron: '25 18 * * *'  # JST 03:25 every day
+  push:
+    paths:
+      - "sync_ohta_recipes.py"
+      - ".github/workflows/update-ohta-recipes.yml"
 
 permissions:
   contents: write
@@ -26,7 +30,23 @@ jobs:
           pip install requests beautifulsoup4
 
       - name: Sync published recipes
-        run: python sync_ohta_recipes.py
+        run: |
+          success=0
+          for attempt in 1 2 3; do
+            echo "Recipe sync attempt ${attempt}/3"
+            if python sync_ohta_recipes.py; then
+              success=1
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Recipe sync failed; waiting 20 seconds before retry..."
+              sleep 20
+            fi
+          done
+          if [ "$success" -ne 1 ]; then
+            echo "Recipe sync failed after 3 attempts."
+            exit 1
+          fi
 
       - name: Commit CSV changes
         run: |
