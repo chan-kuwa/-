@@ -3,6 +3,17 @@ import pandas as pd
 from bs4 import BeautifulSoup
 import google.generativeai as genai
 import base64
+import io
+import os
+import re
+from xml.sax.saxutils import escape
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 
 # --- 1. ページ設定 ---
 st.set_page_config(
@@ -105,6 +116,82 @@ def check_password():
             st.error("パスワードが違います")
     return False
 
+# --- PDF作成 ---
+def _register_japanese_font():
+    candidates = [
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJKjp-Regular.otf",
+        "/usr/share/fonts/truetype/noto/NotoSansJP-Regular.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                pdfmetrics.registerFont(TTFont("RecipeJP", path))
+                return "RecipeJP"
+            except Exception:
+                continue
+    return "Helvetica"
+
+
+def _markdown_to_plain(text):
+    text = re.sub(r"```.*?```", "", text, flags=re.S)
+    text = re.sub(r"`([^`]*)`", r"\1", text)
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"__([^_]+)__", r"\1", text)
+    text = re.sub(r"^#{1,6}\s*", "", text, flags=re.M)
+    text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
+    return text.strip()
+
+
+def make_recipe_pdf(text):
+    buffer = io.BytesIO()
+    font_name = _register_japanese_font()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=18 * mm,
+        leftMargin=18 * mm,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm,
+        title="生成された文章とレシピ",
+        author="やさい料理研究家 大畑ちつる",
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "JPTitle",
+        parent=styles["Title"],
+        fontName=font_name,
+        fontSize=16,
+        leading=22,
+        alignment=TA_LEFT,
+        spaceAfter=10,
+    )
+    body_style = ParagraphStyle(
+        "JPBody",
+        parent=styles["BodyText"],
+        fontName=font_name,
+        fontSize=10.5,
+        leading=17,
+        alignment=TA_LEFT,
+        spaceAfter=5,
+    )
+
+    story = [Paragraph("やさい料理研究家 大畑ちつる", title_style), Spacer(1, 3 * mm)]
+    plain = _markdown_to_plain(text)
+    for block in plain.split("\n"):
+        line = block.strip()
+        if line:
+            story.append(Paragraph(escape(line), body_style))
+        else:
+            story.append(Spacer(1, 2.5 * mm))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
 # --- 3. メイン処理 ---
 def main_app():
     def get_image_base64(file_path):
@@ -180,10 +267,10 @@ def main_app():
     else:
         all_seasons = ["春", "夏", "秋", "冬"]
 
-    # 最初に機能だけ選ぶ
-    st.markdown("### 機能を選択")
+    # 最初に、やりたいことだけ選ぶ
+    st.markdown("### 今日は何をしますか？")
     mode = st.radio(
-        "機能",
+        "メニュー",
         ["過去レシピを検索", "自由な食材から新作を生成"],
         index=None,
         key="main_mode",
@@ -191,9 +278,8 @@ def main_app():
         horizontal=True
     )
 
-    # 何も選んでいないときは、ここで終了
     if mode is None:
-        st.caption("使いたい機能を選んでください。")
+        st.caption("やりたいことを選んでください。")
         return
 
     # --- 過去レシピ検索 ---
@@ -344,6 +430,18 @@ def main_app():
 
             st.caption("📋 全文をコピー")
             st.code(st.session_state.generated_recipe, language="text")
+
+            try:
+                pdf_bytes = make_recipe_pdf(st.session_state.generated_recipe)
+                st.download_button(
+                    "📄 PDFでダウンロード",
+                    data=pdf_bytes,
+                    file_name="generated_recipe.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.warning(f"PDFの作成に失敗しました: {e}")
 
 # --- 4. 実行 ---
 if check_password():
