@@ -260,16 +260,6 @@ def main_app():
     active_csv = master_csv if master_csv.exists() else legacy_csv
     df = load_data(str(active_csv))
 
-    # マスターレシピCSVをいつでも保存できるようにする
-    with active_csv.open("rb") as csv_file:
-        st.download_button(
-            "⬇️ master_recipe_data.csv をダウンロード",
-            data=csv_file.read(),
-            file_name="master_recipe_data.csv",
-            mime="text/csv",
-            use_container_width=False
-        )
-
     if '季節' in df.columns:
         all_seasons = df['季節'].dropna().unique().tolist()
     else:
