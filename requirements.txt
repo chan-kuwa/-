@@ -2,3 +2,4 @@ streamlit>=1.40.0
 google-generativeai
 pandas
 beautifulsoup4
+reportlab
