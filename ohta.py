@@ -34,14 +34,14 @@ st.markdown(
         flex: 0 0 auto;
     }
     .app-title-line {
-        font-size: clamp(14px, 4vw, 22px);
+        font-size: clamp(16px, 4vw, 23px);
         font-weight: 700;
         line-height: 1.35;
         white-space: nowrap;
         margin: 0;
     }
     .app-main-title {
-        font-size: clamp(14px, 4vw, 22px);
+        font-size: clamp(16px, 4vw, 23px);
         font-weight: 700;
         line-height: 1.35;
         white-space: nowrap;
@@ -62,15 +62,19 @@ st.markdown(
 
     @media (max-width: 480px) {
         .block-container {
-            padding-left: 1rem;
-            padding-right: 1rem;
+            padding-left: 0.35rem;
+            padding-right: 0.35rem;
         }
         .app-brand-row img {
-            width: 38px;
+            width: 40px;
+        }
+        .app-brand-row {
+            gap: 0.45rem;
         }
         .app-title-line,
         .app-main-title {
-            font-size: 14px;
+            font-size: 16px;
+            letter-spacing: -0.2px;
         }
         .search-heading {
             font-size: 24px;
