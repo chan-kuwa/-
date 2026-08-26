@@ -11,12 +11,71 @@ st.set_page_config(
     layout="wide"
 )
 
-# サイドバーを完全に非表示
+# サイドバー非表示＋スマホ向け表示調整
 st.markdown(
     """
     <style>
     [data-testid="stSidebar"] {display: none;}
     [data-testid="collapsedControl"] {display: none;}
+
+    .app-header {
+        margin: 0 0 1.2rem 0;
+    }
+    .app-brand-row {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+    .app-brand-row img {
+        width: 48px;
+        height: auto;
+        flex: 0 0 auto;
+    }
+    .app-title-line {
+        font-size: clamp(14px, 4vw, 22px);
+        font-weight: 700;
+        line-height: 1.35;
+        white-space: nowrap;
+        margin: 0;
+    }
+    .app-main-title {
+        font-size: clamp(14px, 4vw, 22px);
+        font-weight: 700;
+        line-height: 1.35;
+        white-space: nowrap;
+        margin: 0.35rem 0 0.45rem 0;
+    }
+    .app-caption {
+        color: #7a7a7a;
+        font-size: clamp(12px, 3vw, 15px);
+        margin-bottom: 1.2rem;
+    }
+    .search-heading {
+        font-size: clamp(22px, 7vw, 36px);
+        font-weight: 700;
+        line-height: 1.2;
+        white-space: nowrap;
+        margin: 0.6rem 0 1rem 0;
+    }
+
+    @media (max-width: 480px) {
+        .block-container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+        .app-brand-row img {
+            width: 38px;
+        }
+        .app-title-line,
+        .app-main-title {
+            font-size: 14px;
+        }
+        .search-heading {
+            font-size: 24px;
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True
@@ -62,14 +121,30 @@ def main_app():
             unsafe_allow_html=True
         )
 
-    # 右上ロゴ＋テキストタイトル
-    header_left, header_right = st.columns([8, 1])
-    with header_left:
-        st.markdown("## やさい料理研究家 大畑ちつる")
-        st.markdown("# レシピリサーチ＆レシピメーカー")
-        st.caption("日々の献立作りをサポートする、プロの野菜レシピ検索ツールです。")
-    with header_right:
-        st.image("logo.png", width=85)
+        st.markdown(
+            f"""
+            <div class="app-header">
+                <div class="app-brand-row">
+                    <img src="data:image/png;base64,{img_base64}">
+                    <div class="app-title-line">やさい料理研究家 大畑ちつる</div>
+                </div>
+                <div class="app-main-title">レシピリサーチ＆レシピメーカー</div>
+                <div class="app-caption">日々の献立作りをサポートする、プロの野菜レシピ検索ツールです。</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            """
+            <div class="app-header">
+                <div class="app-title-line">やさい料理研究家 大畑ちつる</div>
+                <div class="app-main-title">レシピリサーチ＆レシピメーカー</div>
+                <div class="app-caption">日々の献立作りをサポートする、プロの野菜レシピ検索ツールです。</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     if "GOOGLE_API_KEY" in st.secrets:
         genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -108,7 +183,7 @@ def main_app():
     mode = st.session_state.main_mode
 
     if mode == "過去レシピを検索":
-        st.title("🔍 過去レシピ検索")
+        st.markdown('<div class="search-heading">🔍過去レシピ検索</div>', unsafe_allow_html=True)
         q = st.text_input("キーワードを入力（食材や料理名）", placeholder="例：なす 豚肉")
 
         st.markdown("### 季節・旬を選択")
@@ -151,7 +226,7 @@ def main_app():
                     st.code(copy_text, language="text")
 
     else:
-        st.title("✨ 自由食材で新作生成")
+        st.markdown('<div class="search-heading">✨自由食材で新作生成</div>', unsafe_allow_html=True)
         st.write("手元にある食材や、使いたい調味料を自由に入力してください。")
 
         st.markdown("### 季節・旬を選択")
