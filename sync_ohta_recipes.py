@@ -1,5 +1,6 @@
 import csv
 import re
+import shutil
 import time
 from pathlib import Path
 from urllib.parse import urljoin, urlparse, urlunparse
@@ -9,7 +10,8 @@ from bs4 import BeautifulSoup
 
 BASE_URL = "https://www.osakafoodstyle.com"
 ARCHIVE_URL = f"{BASE_URL}/recipe/"
-CSV_PATH = Path("fa2ac34592382d85a2af03a450f780a4.csv")
+CSV_PATH = Path("master_recipe_data.csv")
+LEGACY_CSV_PATH = Path("fa2ac34592382d85a2af03a450f780a4.csv")
 
 SESSION = requests.Session()
 SESSION.headers.update({
@@ -147,7 +149,19 @@ def parse_recipe(url: str, fieldnames: list[str]) -> dict[str, str]:
     return row
 
 
+def ensure_master_csv() -> None:
+    if CSV_PATH.exists():
+        return
+    if LEGACY_CSV_PATH.exists():
+        shutil.copyfile(LEGACY_CSV_PATH, CSV_PATH)
+        print(f"created {CSV_PATH} from legacy CSV")
+        return
+    raise FileNotFoundError("master_recipe_data.csv and legacy CSV are both missing")
+
+
 def main() -> int:
+    ensure_master_csv()
+
     with CSV_PATH.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         fieldnames = reader.fieldnames or []
@@ -165,7 +179,7 @@ def main() -> int:
     print(f"missing published recipes: {len(missing)}")
 
     if not missing:
-        print("ohta CSV is already up to date.")
+        print("master_recipe_data.csv is already up to date.")
         return 0
 
     added = []
@@ -184,7 +198,7 @@ def main() -> int:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(added + rows)
-        print(f"updated ohta CSV with {len(added)} recipes")
+        print(f"updated master_recipe_data.csv with {len(added)} recipes")
     else:
         print("No recipes could be added.")
 
