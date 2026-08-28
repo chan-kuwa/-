@@ -1,4 +1,5 @@
 import csv
+import random
 import re
 import shutil
 import time
@@ -7,6 +8,8 @@ from urllib.parse import urljoin, urlparse, urlunparse
 
 import requests
 from bs4 import BeautifulSoup
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 BASE_URL = "https://www.osakafoodstyle.com"
 ARCHIVE_URL = f"{BASE_URL}/recipe/"
@@ -15,8 +18,24 @@ LEGACY_CSV_PATH = Path("fa2ac34592382d85a2af03a450f780a4.csv")
 
 SESSION = requests.Session()
 SESSION.headers.update({
-    "User-Agent": "Mozilla/5.0 (compatible; OsakaFoodStyleOhtaSync/1.0; +https://www.osakafoodstyle.com/)"
+    "User-Agent": "Mozilla/5.0 (compatible; OsakaFoodStyleOhtaSync/1.1; +https://www.osakafoodstyle.com/)"
 })
+
+# 接続失敗・一時的な5xx・429には自動で再試行する。
+retry_policy = Retry(
+    total=4,
+    connect=4,
+    read=3,
+    status=3,
+    backoff_factor=2,
+    status_forcelist=(429, 500, 502, 503, 504),
+    allowed_methods=frozenset(["GET"]),
+    respect_retry_after_header=True,
+    raise_on_status=False,
+)
+adapter = HTTPAdapter(max_retries=retry_policy, pool_connections=4, pool_maxsize=4)
+SESSION.mount("https://", adapter)
+SESSION.mount("http://", adapter)
 
 
 def normalize_url(url: str) -> str:
@@ -28,10 +47,35 @@ def normalize_url(url: str) -> str:
     return urlunparse((parsed.scheme or "https", parsed.netloc, path, "", "", ""))
 
 
+def _host_variants(url: str) -> list[str]:
+    """www 側が一時的に不調なときは non-www 側も試す。"""
+    parsed = urlparse(url)
+    variants = [url]
+    if parsed.netloc == "www.osakafoodstyle.com":
+        variants.append(urlunparse((parsed.scheme, "osakafoodstyle.com", parsed.path, "", "", "")))
+    elif parsed.netloc == "osakafoodstyle.com":
+        variants.append(urlunparse((parsed.scheme, "www.osakafoodstyle.com", parsed.path, "", "", "")))
+    return variants
+
+
 def get(url: str) -> requests.Response:
-    response = SESSION.get(url, timeout=30)
-    response.raise_for_status()
-    return response
+    """短い障害には複数ホスト＋再試行で耐える。"""
+    last_error = None
+    for variant_index, variant in enumerate(_host_variants(url), 1):
+        try:
+            # 接続待ちは15秒、接続後の読み込みは60秒まで許容。
+            response = SESSION.get(variant, timeout=(15, 60))
+            response.raise_for_status()
+            return response
+        except requests.RequestException as exc:
+            last_error = exc
+            print(f"WARN request failed ({variant_index}): {variant} -> {exc}")
+            if variant_index < len(_host_variants(url)):
+                time.sleep(3 + random.uniform(0.5, 2.0))
+
+    if last_error:
+        raise last_error
+    raise RuntimeError(f"Unable to fetch: {url}")
 
 
 def is_recipe_detail_url(url: str) -> bool:
@@ -69,7 +113,7 @@ def collect_recipe_urls(max_pages: int = 60) -> list[str]:
                 seen.add(recipe_url)
                 found.append(recipe_url)
         print(f"archive page {page}: {len(page_urls)} recipes")
-        time.sleep(0.1)
+        time.sleep(0.25 + random.uniform(0.05, 0.25))
     print(f"public archive recipe URLs: {len(found)}")
     return found
 
@@ -174,7 +218,14 @@ def main() -> int:
     }
     print(f"existing recipe rows: {len(existing)}")
 
-    public_urls = collect_recipe_urls()
+    try:
+        public_urls = collect_recipe_urls()
+    except (requests.ConnectTimeout, requests.ReadTimeout, requests.ConnectionError) as exc:
+        # サイト側が一時的に落ちているだけなら、既存CSVを壊さず正常終了する。
+        # 翌日の定期実行で再確認されるため、タイムアウトだけで失敗通知を飛ばさない。
+        print(f"WARN site temporarily unreachable; keeping existing CSV unchanged: {exc}")
+        return 0
+
     missing = [url for url in public_urls if url not in existing]
     print(f"missing published recipes: {len(missing)}")
 
@@ -191,7 +242,7 @@ def main() -> int:
             print(f"  added: {row.get('Title', '')}")
         except Exception as exc:
             print(f"  WARN parse failed: {exc}")
-        time.sleep(0.15)
+        time.sleep(0.3 + random.uniform(0.05, 0.25))
 
     if added:
         with CSV_PATH.open("w", encoding="utf-8-sig", newline="") as f:
